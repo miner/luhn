@@ -6,9 +6,12 @@
 
 ;; Good candidate for a spec
 
-;; SEM: Bug!  Now they tell me... Credit card 'numbers' can start with a leading zero.  They
-;; should always be treated as essentially strings, not numbers.  It's OK to convert to
-;; digits as long as you preserve the leading zeroes.
+;; By the way, credit card numbers are allowed to start with 0 so you can't store them
+;; directly as longs.  Also, technically they're allowed to have 19 decimal digits, which
+;; can be too big for a long.  The basic type for a credit card 'number' is more really a
+;; String.  For processing, it's convenient to convert to a vector of integer digits, which
+;; preserves the leading zeroes.
+
 
 
 (ns miner.luhn
@@ -67,7 +70,6 @@
   (when (re-matches #"[-0-9 ]+" s)
     (str/replace s #"[- ]" "")))
 
-;; "num" is an integer or a string of digits
 (defn checksum [numstr]
   (checksum-digits (mapv digit numstr)))
 
