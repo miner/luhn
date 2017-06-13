@@ -243,10 +243,9 @@
 (s/def ::credit-card1 (s/with-gen check? (fn [] (g/fmap #(gen-card %) (g/choose 13 18)))))
 
 ;; better gen is more reproducible and shrinkable, needs to combine tc generators
-;; Generate num form of AB+C
-;; A 1-9
-;; B 0-9
-;; C checksum of AB+
+;; Generate num form of N+C
+;; N 0-9
+;; C checksum of N+0
 
 (def card-generator (gen/let [cnt (g/choose 12 18)
                               dv (g/vector (g/choose 0 9) cnt)]
