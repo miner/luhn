@@ -4,11 +4,15 @@
 ;; much later blog post, but also covers Luhn
 ;; https://garajeando.blogspot.com/2017/06/kata-luhn-test-in-clojure.html
 
-;; Good candidate for a spec
+;; See also "Luhny Bin Challenge"
+;; [old] http://corner.squareup.com/2011/11/luhny-bin.html
+;; [current] https://medium.com/square-corner-blog/coding-challenge-the-luhny-bin-28b43b3942c2
+
+;; Good candidate for a spec.  More below.
 
 ;; By the way, credit card numbers are allowed to start with 0 so you can't store them
 ;; directly as longs.  Also, technically they're allowed to have 19 decimal digits, which
-;; can be too big for a long.  The basic type for a credit card 'number' is more really a
+;; can be too big for a long.  The basic type for a credit card 'number' is essentially a
 ;; String.  For processing, it's convenient to convert to a vector of integer digits, which
 ;; preserves the leading zeroes.
 
@@ -52,18 +56,133 @@
     8 7
     9 9))
 
-    
+
+;; slightly faster than Java Character/digit
+
 ;; using int is slightly faster than long
 (defn digit [ch]
   (- (int ch) (int \0)))
 
-;; slightly faster if digits is a vector, but any seq is OK
+
+;; fastest but slightly ugly loop
+;; digits must be a vector
 (defn checksum-digits [digits]
+  (let [cnt (count digits)]
+    (loop [i (dec cnt) sum (if (odd? cnt) (digits 0) 0)]
+      ;; stepping by 2
+      (if (pos? i)
+        (recur (- i 2)   (long (+ sum (digits i) (x2 (digits (dec i))))))
+        (mod sum 10)))))
+
+
+;; was fastest but now lchk? is
+(defn fchk? [numstr]
+  (let [digits (mapv digit numstr)
+        cnt (count digits)]
+    (loop [i (dec cnt) sum (if (odd? cnt) (digits 0) 0)]
+      ;; stepping by 2
+      (if (pos? i)
+        (recur (- i 2)   (long (+ sum (digits i) (x2 (digits (dec i))))))
+        (zero? (mod sum 10))))))
+
+;; not faster with partition-all, map-indexed is faster
+
+(defn tchk-GOOD? [numstr]
+  (let [len (.length ^String numstr)
+        ds (seq numstr)]
+    (transduce (comp (map digit)
+                     (map-indexed (fn [i v] (if (even? i) (x2 v) v))))
+             (completing + #(zero? (mod % 10)))
+             (if (odd? len) (digit (first ds)) 0)
+             (if (odd? len) (rest ds) ds))))
+
+
+
+;; SEM char conversion with `digits`
+
+(defn cdig [^Character ch]
+  (case ch
+    \0 0
+    \1 1
+    \2 2
+    \3 3
+    \4 4
+    \5 5
+    \6 6
+    \7 7
+    \8 8
+    \9 9))
+
+(defn cx2 [^Character ch]
+  (case ch
+    \0 0
+    \1 2
+    \2 4
+    \3 6
+    \4 8
+    \5 1
+    \6 3
+    \7 5
+    \8 7
+    \9 9))
+
+
+;; ALMOST
+(defn tchk? [numstr]
+  (let [len (.length ^String numstr)
+        cs (seq numstr)]
+    (transduce (map-indexed (fn [i c] (if (even? i) (cx2 c) (cdig c))))
+             (completing + #(zero? (mod % 10)))
+             (if (odd? len) (cdig (first cs)) 0)
+             (if (odd? len) (rest cs) cs))))
+
+
+
+
+;; VERY FASTEST, char-array and ch conversions, skipping digit
+(defn lchk? [numstr]
+  (let [len (.length ^String numstr)
+        ca (char-array numstr)]
+    (loop [i (dec len) sum (if (odd? len) (cdig (aget ca 0)) 0)]
+      ;; stepping by 2
+      (if (pos? i)
+        (recur (- i 2)   (long (+ sum (cdig (aget ca i)) (cx2 (aget ca (dec i))))))
+        (zero? (mod sum 10))))))
+
+;; only slight slower with vec
+(defn vchk? [numstr]
+  (let [len (.length ^String numstr)
+        cv (vec numstr)]
+    (loop [i (dec len) sum (if (odd? len) (cdig (cv 0)) 0)]
+      ;; stepping by 2
+      (if (pos? i)
+        (recur (- i 2)   (long (+ sum (cdig (cv i)) (cx2 (cv (dec i))))))
+        (zero? (mod sum 10))))))
+
+
+;; 
+#_ (defn checksum-digitsGOOD [digits]
+  (let [dub? (if (odd? (count digits)) odd? even?)]
+    (mod (reduce + (map-indexed (fn [i x] (if (dub? i) (x2 x) x)) digits))
+         10)))
+
+;; old version, slower
+#_ (defn checksum-digits1 [digits]
   ;; pad with a leading 0 to get even count
   (let [digits (if (odd? (count digits)) (cons 0 digits) (seq digits))]
     (mod (+ (reduce + (map x2 (take-nth 2 digits)))
             (reduce + (take-nth 2 (rest digits))))
          10)))
+
+
+;; about 800 ms / 10000
+;; but not fastest
+#_ (defn checksum-digitsFAST [digits]
+  (let [sum (if (odd? (count digits))
+              (reduce-kv (fn [res i x] (if (odd? i) (+ res (x2 x)) (+ res x))) 0 digits)
+              (reduce-kv (fn [res i x] (if (even? i) (+ res (x2 x)) (+ res x))) 0 digits))]
+    (mod sum 10)))
+
 
 ;; allows space and hyphens in a string for readability
 (defn clean-card-string [s]
@@ -130,17 +249,6 @@
        (reduce (fn [acc d] (+ (* 10 acc) d)) 0
                (if (zero? chk) ds (concat bs rs (list (- 10 chk))))))))
 
-;; We originally thought credit cards could not start with a 0, but they actually can.  So
-;; we should always use strings as the base type.  It's OK to convert to a vector of digits
-;; as long as the leading zeroes are preserved.
-
-;; Credit cards typically are 15 or 16 digits, but they can be 13 to 19 digits.
-;; Unfortunately, 10^19 is too big for a long so we restrict to 18 digits to be safe.
-;; Maybe this is wrong since we decided to use strings so it should be easy to handle 19
-;; digits.
-
-
-
 (defn gen-card
   ([] (gen-card nil (+ 13 (rand-int 6))))
   ([num-digits] (gen-card nil num-digits))
@@ -179,7 +287,8 @@
 
 
 
-
+;; Related to "Luhny Bin Challenge".  However, I didn't write a solution in their project format.
+;; https://github.com/square/luhnybin
 (defn mask-credit-card [num-or-str]
   (if (check? num-or-str)
     (str/replace (str num-or-str) #"[0-9]" "X")
