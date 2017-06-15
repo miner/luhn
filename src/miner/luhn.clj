@@ -64,43 +64,8 @@
   (- (int ch) (int \0)))
 
 
-;; fastest but slightly ugly loop
-;; digits must be a vector
-(defn checksum-digits [digits]
-  (let [cnt (count digits)]
-    (loop [i (dec cnt) sum (if (odd? cnt) (digits 0) 0)]
-      ;; stepping by 2
-      (if (pos? i)
-        (recur (- i 2)   (long (+ sum (digits i) (x2 (digits (dec i))))))
-        (mod sum 10)))))
 
-
-;; was fastest but now lchk? is
-(defn fchk? [numstr]
-  (let [digits (mapv digit numstr)
-        cnt (count digits)]
-    (loop [i (dec cnt) sum (if (odd? cnt) (digits 0) 0)]
-      ;; stepping by 2
-      (if (pos? i)
-        (recur (- i 2)   (long (+ sum (digits i) (x2 (digits (dec i))))))
-        (zero? (mod sum 10))))))
-
-;; not faster with partition-all, map-indexed is faster
-
-(defn tchk-GOOD? [numstr]
-  (let [len (.length ^String numstr)
-        ds (seq numstr)]
-    (transduce (comp (map digit)
-                     (map-indexed (fn [i v] (if (even? i) (x2 v) v))))
-             (completing + #(zero? (mod % 10)))
-             (if (odd? len) (digit (first ds)) 0)
-             (if (odd? len) (rest ds) ds))))
-
-
-
-;; SEM char conversion with `digits`
-
-(defn cdig [^Character ch]
+(defn cdigit [ch]
   (case ch
     \0 0
     \1 1
@@ -113,7 +78,7 @@
     \8 8
     \9 9))
 
-(defn cx2 [^Character ch]
+(defn cx2 [ch]
   (case ch
     \0 0
     \1 2
@@ -127,15 +92,29 @@
     \9 9))
 
 
+
+;; fastest but slightly ugly loop
+;; digits must be a vector
+(defn checksum-digits [digits]
+  (let [cnt (count digits)]
+    (loop [i (dec cnt) sum (if (odd? cnt) (digits 0) 0)]
+      ;; stepping by 2
+      (if (pos? i)
+        (recur (- i 2)   (long (+ sum (digits i) (x2 (digits (dec i))))))
+        (mod sum 10)))))
+
+
+
+
+
 ;; ALMOST
 (defn tchk? [numstr]
   (let [len (.length ^String numstr)
         cs (seq numstr)]
-    (transduce (map-indexed (fn [i c] (if (even? i) (cx2 c) (cdig c))))
+    (transduce (map-indexed (fn [i c] (if (even? i) (cx2 c) (cdigit c))))
              (completing + #(zero? (mod % 10)))
-             (if (odd? len) (cdig (first cs)) 0)
+             (if (odd? len) (cdigit (first cs)) 0)
              (if (odd? len) (rest cs) cs))))
-
 
 
 
@@ -143,20 +122,21 @@
 (defn lchk? [numstr]
   (let [len (.length ^String numstr)
         ca (char-array numstr)]
-    (loop [i (dec len) sum (if (odd? len) (cdig (aget ca 0)) 0)]
+    (loop [i (dec len) sum (if (odd? len) (cdigit (aget ca 0)) 0)]
       ;; stepping by 2
       (if (pos? i)
-        (recur (- i 2)   (long (+ sum (cdig (aget ca i)) (cx2 (aget ca (dec i))))))
+        (recur (- i 2)   (long (+ sum (cdigit (aget ca i)) (cx2 (aget ca (dec i))))))
         (zero? (mod sum 10))))))
+
 
 ;; only slight slower with vec
 (defn vchk? [numstr]
-  (let [len (.length ^String numstr)
-        cv (vec numstr)]
-    (loop [i (dec len) sum (if (odd? len) (cdig (cv 0)) 0)]
+  (let [cv (vec numstr)
+        len (count cv)]
+    (loop [i (dec len) sum (if (odd? len) (cdigit (cv 0)) 0)]
       ;; stepping by 2
       (if (pos? i)
-        (recur (- i 2)   (long (+ sum (cdig (cv i)) (cx2 (cv (dec i))))))
+        (recur (- i 2)   (long (+ sum (cdigit (cv i)) (cx2 (cv (dec i))))))
         (zero? (mod sum 10))))))
 
 
