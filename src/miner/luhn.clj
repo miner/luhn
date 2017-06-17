@@ -25,7 +25,7 @@
             [clojure.spec.gen.alpha :as g]))
 
 
-
+;; NOTE: rem is slightly faster than mod, but beware neg numbers 
 
 ;; official definition, just for testing
 (defn x2calc [n]
@@ -101,7 +101,7 @@
       ;; stepping by 2
       (if (pos? i)
         (recur (- i 2)   (long (+ sum (digits i) (x2 (digits (dec i))))))
-        (mod sum 10)))))
+        (rem sum 10)))))
 
 
 
@@ -112,25 +112,38 @@
   (let [len (.length ^String numstr)
         cs (seq numstr)]
     (transduce (map-indexed (fn [i c] (if (even? i) (cx2 c) (cdigit c))))
-             (completing + #(zero? (mod % 10)))
+             (completing + #(zero? (rem % 10)))
              (if (odd? len) (cdigit (first cs)) 0)
              (if (odd? len) (rest cs) cs))))
 
 
 
+;; use alternating sign of R to indicate conversion toggle
+;; offset by 10 to avoid unsigned 0, mag always increases
+;; surprisingly good, but not quite faster than loop
+
+(defn rchk? [numstr]
+  (zero? (rem (reduce (fn [r c] (if (neg? r) (- (cx2 c) r)  (- (+ r (cdigit c)))))
+                      (if (even? (.length ^String numstr)) -10 10)
+                      (seq numstr))
+              10)))
+
+
+
+
 ;; VERY FASTEST, char-array and ch conversions, skipping digit
-(defn lchk? [numstr]
+(defn fast-check? [numstr]
   (let [len (.length ^String numstr)
         ca (char-array numstr)]
     (loop [i (dec len) sum (if (odd? len) (cdigit (aget ca 0)) 0)]
       ;; stepping by 2
       (if (pos? i)
         (recur (- i 2)   (long (+ sum (cdigit (aget ca i)) (cx2 (aget ca (dec i))))))
-        (zero? (mod sum 10))))))
+        (zero? (rem sum 10))))))
 
 
 ;; only slight slower with vec
-(defn vchk? [numstr]
+(defn vchk1? [numstr]
   (let [cv (vec numstr)
         len (count cv)]
     (loop [i (dec len) sum (if (odd? len) (cdigit (cv 0)) 0)]
@@ -138,6 +151,28 @@
       (if (pos? i)
         (recur (- i 2)   (long (+ sum (cdigit (cv i)) (cx2 (cv (dec i))))))
         (zero? (mod sum 10))))))
+
+
+(defn vchecksum [numstr]
+  (let [cv (vec numstr)
+        len (count cv)]
+    (loop [i (dec len) sum (if (odd? len) (cdigit (cv 0)) 0)]
+      ;; stepping by 2
+      (if (pos? i)
+        (recur (- i 2)   (long (+ sum (cdigit (cv i)) (cx2 (cv (dec i))))))
+        (mod sum 10)))))
+
+(defn vchk? [numstr]
+  (zero? (vchecksum numstr)))
+
+;; https://www.rosettacode.org/wiki/Luhn_test_of_credit_card_numbers#Clojure
+;; SEM added type hint, but still slow (factor of 10x slower than fast-check?)
+(defn rosetta-luhn? [cc]
+  (let [factors (cycle [1 2])
+        numbers (map #(Character/digit ^Character % 10) cc)
+        sum (reduce + (map #(+ (quot % 10) (mod % 10))
+                           (map * (reverse numbers) factors)))]
+    (zero? (mod sum 10))))
 
 
 ;; 
@@ -163,6 +198,12 @@
               (reduce-kv (fn [res i x] (if (even? i) (+ res (x2 x)) (+ res x))) 0 digits))]
     (mod sum 10)))
 
+(defn kvchk? [numstr]
+  (let [cv (vec numstr)
+        sum (if (odd? (count cv))
+              (reduce-kv (fn [res i x] (if (odd? i) (+ res (cx2 x)) (+ res (cdigit x)))) 0 cv)
+              (reduce-kv (fn [res i x] (if (even? i) (+ res (cx2 x)) (+ res (cdigit x)))) 0 cv))]
+    (zero? (mod sum 10))))
 
 ;; allows space and hyphens in a string for readability
 (defn clean-card-string [s]
