@@ -383,6 +383,7 @@
                             chk (checksum-digits dv0)]
                         (apply str (if (zero? chk) dv0 (conj dv (- 10 chk)))))))
 
+
 ;; About twice as fast but only up to 18 digits because 10^19 is too big.
 ;; Actually, there's some dangerous imprecision in converting doubles to longs around 2^53
 ;; or approx 16 decimal digits.  Lowered generation to 13 to 16 digits to be safe.
