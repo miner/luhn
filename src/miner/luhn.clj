@@ -16,6 +16,9 @@
 ;; String.  For processing, it's convenient to convert to a vector of integer digits, which
 ;; preserves the leading zeroes.
 
+;; SEM: Had an idea about storing as long... if there are leading zeros, make it negative
+;; with prefix -1.  So 001234 becomes -1001234.  Or could store number of digits in high
+;; byte.  Probably not worth it, but maybe.
 
 
 (ns miner.luhn
