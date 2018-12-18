@@ -28,6 +28,29 @@
             [clojure.spec.gen.alpha :as g]))
 
 
+
+;; by @clojuregrams on twitter
+;; simple but slow
+(defn cg-luhn? [cc]
+ (let [factors (cycle [1 2])
+       numbers (map #(Character/digit % 10) cc)
+       sum (->> (map * (reverse numbers) factors)
+            (map #(+ (quot % 10) (mod % 10)))
+            (reduce +))]
+   (zero? (mod sum 10))))
+
+
+;; much faster with ^Character hint.  Also, mapv/rseq and rem.
+(defn cg-luhn2? [cc]
+ (let [factors (cycle [1 2])
+       numbers (mapv #(Character/digit ^Character % 10) cc)
+       sum (->> (map * (rseq numbers) factors)
+            (map #(+ (quot % 10) (rem % 10)))
+            (reduce +))]
+   (zero? (mod sum 10))))
+
+
+
 ;; NOTE: rem is slightly faster than mod, but beware neg numbers 
 
 ;; official definition, just for testing
